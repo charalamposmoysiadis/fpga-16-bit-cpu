@@ -1,0 +1,270 @@
+//εγω γραφω μια εντολη, αυτη γραφεται στην ρομ, ο επεξεργαστης την παοιρνει απο την ρομ, 
+//παιρνει τις μεταβλητες που δινει η ρομ απο την ραμ και μετα εκτελει την εντολη
+module cpu (
+    //εντολες των 24 μπιτ, 5 opc, 3 reg, 16 num
+    input clk,  // clock
+    input rst,  // reset
+    input serial_data_in[8],
+    input in0[8],
+    input in1[8],
+    input in2[8],
+    input clear_perf, // clear peripheral code
+    output serial_data_out[8],
+    output out0[8],
+    output out1[8],
+    output out2[8],
+    output perf[10] // peripheral code in
+) {
+    
+    //signals for instructions
+            
+    sig opcode[5]
+    sig dest[3] // destination register
+    sig src1[3] // source register 1
+    sig src2[3] 
+    sig pcAddress[16] // program counter address, δειχενι στην ρομ που εχει 2^16 θεσεις
+    sig value[16] // 16 bit memory location, num
+    sig perfcode[10] // σαν μετρητης βηματων: ==0: απλες εντολες 1 κυκλου pc++, ==1: περιμενει ο pc,
+    //==2: συνεχιζει
+    
+    //roms
+    instRom instRom
+    
+    simple_ram ram(#WIDTH(16),#ENTRIES(4096),.clk(clk))
+    .clk(clk){
+        .rst(rst){
+            dff reg[8][16] // 8 16bit registers
+            dff pc[16] // program counter
+            dff stack[8][16] // αρα μια στοιβα 8 θεσεων με την καθε θεση να εχει 16 μπιτ χωρο
+            dff sp[3] // stack pointer και 3 γιατι 2^3 = 8 για να μπορει να δειξει λαθε μεροσ της stack
+            dff outSerial[8] // output serial register
+            dff outReg0[8]
+            dff outReg1[8]
+            dff outReg2[8]
+            // flags για το  compare operation
+            dff zflag // zero flag
+            dff eflag // equal flag
+            dff lflag // less than flag
+            dff ramAddress[12] // γιατι 2^12 = 4096, ωστε να παιρνει καθε μεροσ της ραμ
+            
+            
+    
+
+        }
+    }
+    
+    always {
+
+        
+        //flags initialization
+        zflag.d = zflag.q
+        eflag.d = eflag.q
+        lflag.d = lflag.q
+        
+        
+        //decompose the instruction
+        opcode = instRom.inst[23:19] // opcode takes first 5 bits
+        dest = instRom.inst[18:16] // destination takes bits 18-16
+        src1 = instRom.inst[15:13] // ..
+        src2 = instRom.inst[12:10]
+        pcAddress = instRom.inst[18:3] // για εντολες οπως jmp
+        value = instRom.inst[15:0]
+        perfcode = instRom.inst[23:14]
+        
+        //connecting ram adderss to register
+        ram.address = ramAddress.q // set up ram
+        ram.write_enable = 0 // default gia read
+        ram.write_data = 8hxx // δεν μας νοιζει η τιμη
+        
+        //τελειωνουμε με τα outputs
+        serial_data_out = outSerial.q
+        out0 = outReg0.q
+        out1 = outReg1.q
+        out2 = outReg2.q
+        perf = perfcode
+        
+        instRom.address = pc.q // connecting pc to instrom
+
+        //textrom
+        //if(perfcode == 0 || (perfcode >31))
+        pc.d = pc.q + 1
+        if(clear_perf){
+            perfcode = 0
+            pc.d = pc.q + 1
+           
+        }
+        
+        case(opcode)
+        //ουσιαστικα λεμε τι κανει η καθε εντολη σε γενικο βαθμο
+        {
+            Inst.INC: reg.d[dest] = reg.q[dest] +1
+            Inst.DEC: reg.d[dest] = reg.q[dest] - 1
+            Inst.LDI: reg.d[dest] = value
+            Inst.SMA: ramAddress.d = reg.q[dest][11:0] // δεν μας νοιαζει για τα αλλα μπιτ, ετσι
+            // κι αλλιως η ραμ ειναι 2^12 μπιτ. Κραταμε παντα τα απο δεξια μπιτσ σε τετοια περιπτωση
+            //least significant bits δηλαδη
+            Inst.LDM: reg.d[dest] = ram.read_data
+            Inst.STM: 
+                ram.write_enable = 1
+                ram.write_data = reg.q[dest]
+            // text rom Inst.LDR: 
+            Inst.MOV: reg.d[dest] = reg.q[src1]
+                
+            //stack operations
+            Inst.PSHI: 
+                 //θελουμε push το value πανω στην στακ
+
+                if(sp.q != 7)
+                {
+                    stack.d[sp.q + 1 ] = value
+                    sp.d = sp.q + 1
+                }//αυτο συμβαινει λογω ταυτοχρονισμου. εντολες μεσα στο ιδιο μπλοκ(always) εκτελουνται
+            //παραλληλα 
+            //else δεν χρειαζεται, ο pc απλα πηγαινει στην εομενη εντολη
+                          
+
+            Inst.PSHR:
+            //εμμεσση διεθυνσιοδιτηση καταχωρητη
+                 if(sp.q != 7)
+                {
+                    stack.d[sp.q + 1 ] = reg.q[dest]
+                    sp.d = sp.q + 1
+                }
+
+                
+            Inst.PULR: 
+                if(sp.q !=0)
+                {
+                    reg.d[src1] = stack.q[sp.q]
+                    reg.d[dest] = reg.q[src1]
+                    sp.d = sp.q - 1
+                }
+            //δεν βρισκω λογο στην υλοποιηση του , οπως και του pushr οταν εχω στην διαθεση μου τα
+            //pulli και pushi
+                
+            Inst.PULI:
+                  if(sp.q !=0)
+                {
+                    reg.d[dest] = stack.q[sp.q]
+                    sp.d = sp.q - 1
+                }
+                
+            //in, out
+            Inst.IN: 
+                case(src1){
+                    0: reg.d[dest] = c{8b0,serial_data_in}
+                    1: reg.d[dest] = c{8b0,in0}                    
+                    2: reg.d[dest] = c{8b0,in1}
+                    3: reg.d[dest] = c{8b0,in2}
+                    default: reg.d[dest] = 16d0
+
+                
+
+                }
+                
+            Inst.OUT: 
+                case(src1)
+                {
+                    0: outSerial.d = reg.q[dest][7:0]
+                    1: outReg0.d = reg.q[dest][7:0]
+                    2: outReg1.d = reg.q[dest][7:0]
+                    3: outReg2.d = reg.q[dest][7:0]
+
+                }
+            //jumps
+            Inst.JMP:
+                pc.d = pcAddress
+                
+            Inst.JZ:
+                if(zflag.q == 1)
+                {
+                    pc.d = pcAddress
+                }
+            Inst.JNZ:
+                  if(zflag.q == 0)
+                {
+                    pc.d = pcAddress
+                }
+            Inst.JNE:
+                    if(eflag.q == 0)
+                {
+                    pc.d = pcAddress
+                }
+            Inst.JLT:
+                    if(lflag.q == 1)
+                {
+                    pc.d = pcAddress
+                }
+         
+            
+           //?? Inst.RTN:
+                
+                //arithmetics
+            Inst.ADD:
+                reg.d[dest] = reg.q[src1] + reg.q[src2]
+                
+            Inst.SUB:
+                reg.d[dest] = reg.q[src1] - reg.q[src2]
+                
+            Inst.AND:
+                reg.d[dest] = reg.q[src1] & reg.q[src2]
+            // χρειαζεται &(bitwise operator), οχι &&(λογικος τελεστης)
+                
+            Inst.OR:reg.d[dest] = reg.q[src1] | reg.q[src2]
+            //χρειαζεται |(bitwise operator), οχι ||(λογικος τελεστης)
+                
+            Inst.XOR:
+                reg.d[dest] = reg.q[src1] ^ reg.q[src2]
+                
+            Inst.SHL:
+                reg.d[dest] = reg.q[dest] << (value)
+                //αριστερη ολισθηση: <<
+                
+            Inst.SHR:
+                reg.d[dest] = reg.q[dest] >> (value)
+            //δεξια ολισθηση
+
+            Inst.CMP:
+                if(reg.q[dest] == reg.q[src1])
+                {
+                    eflag.d = 1
+                    zflag.d = 1
+                    lflag.d = 0
+                }
+                else if(reg.q[dest] < reg.q[src1])
+                {
+                    lflag.d = 1
+                    eflag.d = 0
+                    zflag.d = 0
+                }
+                else 
+                {
+                    lflag.d = 0
+                    eflag.d = 0
+                    zflag.d = 0
+                }
+            // σε καθε if πρεπει να ενημερωνεται καταλληλα καθε lag
+            //ή πιο κομψα
+            //zflag.d = (reg.q[dest] == reg.q[src1])
+            //eflag.d = (reg.q[dest] == reg.q[src1])
+            //lflag.d = (reg.q[dest] < reg.q[src1])
+              
+                
+            Inst.NOT:
+                reg.d[dest] = ~reg.q[dest]
+                // ο ~ τα αντιστρεφει
+                
+            Inst.SEF:
+                eflag.d = 1
+                
+            Inst.CEF: 
+                eflag.d = 0
+                
+            Inst.RTN: 
+                pc.d = stack.q[sp.q];      // Παίρνει τη διεύθυνση επιστροφής από την κορυφή της στοίβας
+                sp.d = sp.q - 1;
+        }
+        
+        
+    }
+}

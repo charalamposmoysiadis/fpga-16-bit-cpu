@@ -1,0 +1,75 @@
+//instruciton
+global Inst{
+    const NOP = 5d00 // no operation - 19xx, 5 shmainei 5 bits ara to opcode
+    //d shmainei decimal, 00 einai to 00000
+    const INC = 5d01 // Increment(increase) register - 16xx giati 5 opc+ 3 reg = 8. ara 24 - 8 = 16 kena
+    const DEC = 5d02 // decrement(decrease) 16xx
+    const LDI = 5d03 // Load reg immediate δηλαδη με το 16 bit number αρα 0xx
+    const SMA = 5d04 // Set ram address from register,ουσιαστικα λεει πανε σε αυτη τη θεση ραμ
+    //που περιεχεται στον καταχωρητη reg, πχ SMA R1- 16xx
+    const LDM = 5d05 // Load 16 bts to reg from memory - 0xx, πχ LDM R1, αφου εχουμε ορισει την θεση ραμ
+    // με sma βαζουμε μεσα στη θεση τον αριθμο του R1
+    const STM = 5d06 // Store 16 bits from reg to memory - 0xx πχ STM R1, αφου εχει γινει SMA
+    const LDR = 5d07 // Load from text rom to dest reg - 16xx, LDR R1, αφου εχουμε ορισει θεση της textrom
+    const MOV = 5d08 // Move to dest reg from source reg - 13xx, πχ MOV R1 R2, ,μεταφερουμε το περιεχομενο
+    //το R2 στον R1
+    
+    const PSHI = 5d09 //  Push immediate 16-bit number (PC address) onto stack - 3 xx
+    const PSHR = 5d10 // Push register content onto stack - 16 xx, αρα θα παρει μονο το ποιος reg ειναι
+    const PULR = 5d11 // Pull register content from stack - 16 xx
+    const PULI = 5d31// Pull immediate 16 bit number
+    const IN =5d12 // Load byte into reg from external port - 13 xx
+    const OUT =5d13 // Send byte from reg to external port - 13 xx
+    const JMP = 5d14 //Set PC to 16-bit pAddr unconditional - 3 xx
+    const JZ = 5d15 // Set PC to 16-bit pAddr if zero flag set - 3 xx, jump on zero
+    const JNZ = 5d16 //  Set PC to 16-bit pAddr if zero flag is clear - 3 xx, jump, not zero
+    const JNE = 5d17 // Set PC to 16-bit pAddr if Equal flag is clear - 3 xx, jump not equal
+    const JLT = 5d18 // Set PC to 16-bit pAddr if Less Than flag set - 3 xx, jump less than
+    const RTN = 5d19 // Return - Pull PC address from top of stack - 19 xx
+    const ADD = 5d20 // Add scr1 reg and scr2 reg, result in dest reg - 10 xx
+    const SUB = 5d21 // Subtract scr2 reg from scr1 reg, result in dest reg - 10 xx
+    const AND = 5d22 // AND scr1 reg and scr2 reg, result in dest reg - 10 xx
+    const OR = 5d23 // OR scr1 reg and scr2 reg, result in dest reg - 10 xx
+    const XOR = 5d24 // XOR scr1 reg and scr2 reg, result in dest reg - 10 xx
+    const SHL = 5d25 // Shift left dest reg by bits specified in immediate 16-bit number - 0 xx
+    const SHR = 5d26 // Shift right dest reg by bits specified in immediate 16-bit number - 0 xx
+    const CMP = 5d27 // Compare dest reg and scr1 reg, set zero, equal flags; set LT flag if dest reg < scr1 reg
+    const NOT = 5d28 // Invert register - 16 xx
+    const SEF = 5d29 // Set equal flag - 19 xx
+    const CEF = 5d30 // Clear equal flag - 19 xx
+}
+//σημειωση: 
+//d-> αριθμοι, κωδικοι εντολων ή opcodes
+//b-> πχ για flags
+// προσπαθησα να βαλω h αλλα δεν μπορει με απλα 5h20, 5h21  διατι αυτα στον δεκαεξαδικο ειναι πανω απο 31
+
+global Reg{
+    const ZERO = 3d0 // destination register reg = reg[0]
+    const S1 = 3d1 // source reg1 = reg[1]
+    const S2 = 3d2 // source reg2 = reg[2]
+    // indexes πχ για arrays ή γενικα σαν δεικτες
+    const X1 = 3d3 // index 1 = reg[3]
+    const X2 = 3d4 // index 2 = reg[4]
+    const X3 = 3d5 // index 3 = reg[5]
+    const X4 = 3d6 // index 4 = reg[6]
+    const D1 = 3d7 // index 5 = reg[7]
+
+}
+
+global Call{
+    const SER_IN = 5d0 // serial in ή 5d8 για να μην συμπεσει με τα inst
+    const SER_OUT = 5d1 // serial out ομοιως 5d9
+}
+
+global Port{
+    const IN0 = 3d0 // IN port 0
+    const IN1 = 3d1
+    const IN2 = 3d2
+    const OUT0 = 3d3 // OUT port
+    const OUT1 = 3d4
+    const OUT2 = 3d5
+    const SER_IN = 3d6 // serial in port
+    const SER_OUT = 3d7 // serial out port
+
+}
+
